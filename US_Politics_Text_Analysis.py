@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# In[15]:
+# In[36]:
 
 
 '''import the needed libraries'''
@@ -40,7 +40,7 @@ import tmtoolkit
 from tmtoolkit.topicmod.evaluate import metric_coherence_gensim
 
 
-# In[16]:
+# In[37]:
 
 
 '''Method for reading data from csv and save as type DataFrame (Pandas)'''
@@ -51,9 +51,14 @@ def inputData(url):
     
 '''Declaration of variables'''
 '''Data Input as .csv from github'''
-'''@model: placeholder, that will be overwritten'''
+'''@model: placeholder for lsa/lda, that will be overwritten'''
+'''@tfvectorizer: placeholder for Tfidf, that will be overwritten'''
+'''@chosenNumberTopics: number of topics used for the specific data set'''
 '''@param: ?raw=true in url important for using clean original data'''
+bow_vect = CountVectorizer()
+tfvectorizer = TfidfVectorizer(use_idf=True, smooth_idf=True)
 model = TruncatedSVD(n_components=10,algorithm='randomized',n_iter=10)
+chosenNumberTopics = 2
 data_url = 'https://github.com/freezz88/US_Politics_Text_Analysis/blob/main/reddit_politics.csv?raw=true'
 data = inputData(data_url)
 print(data.head(10))
@@ -61,7 +66,7 @@ print(type(data))
 print("Number of rows in DataFrame: ", len(data))
 
 
-# In[18]:
+# In[38]:
 
 
 '''Cleaning data'''
@@ -99,7 +104,8 @@ def preprocess_text(text):
     # Remove URLs
     text = re.sub(r'https?://\S+|www\.\S+', '', text)  
     # Remove special characters, keeping only words and basic charakters
-    text = re.sub(r'[^a-zA-Z0-9\s,.?!]', '', text)  
+    #text = re.sub(r'[^a-zA-Z0-9\s,.?!]', '', text)  
+    text = re.sub(r'[^a-zA-Z\s,.?!]', '', text)  
     # Reduce massive character repetition to a maximum of two charakters
     text = re.sub(r'(.)\1{2,}', r'\1\1', text)   
     return text
@@ -136,7 +142,7 @@ print("Text after text preprocessing:")
 print(preprocessed_data)
 
 
-# In[20]:
+# In[39]:
 
 
 '''Implementation Bag-of-words'''
@@ -149,79 +155,100 @@ def calculateBoW():
     print(" ")
     print(bow_data)
     print(" ")
+    result = bow_data.max()
+    sorted_result = result.sort_values(ascending=False)
     print("Höchste Wortvorkommen: ")
-    print(bow_data.max())
+    print(sorted_result)
     print(" ")
     
     
 calculateBoW()
 
 
-# In[22]:
+# In[40]:
 
 
 '''Implementation Tf-idf'''
 '''ToDo wrong data - the data from text preprocessing not used'''
-def calculateTfidf():
-    #vectorizer = TfidfVectorizer(min_df=1) first version TfidfVectorizer
+def calculateTfidf(showValues):
     vectorizer = TfidfVectorizer(use_idf=True,
     smooth_idf=True, stop_words=stop_words_english)
-    #model = vectorizer.fit_transform([reviews_string]) wrong usage, wrong datatype
+    tfvectorizer = vectorizer
     model = vectorizer.fit_transform(preprocessed_data)
     data2=pd.DataFrame(model.toarray(),columns=vectorizer.get_feature_names())
     '''Zwischenausgabe der TF-idf Daten'''
-    print("TF-idf Daten Reviews")
-    print(" ")
-    print(data2)
-    print(" ")
-    print("Höchstes relatives Wortvorkommen: ")
-    print(data2.max())
-    print(" ")
+    if (showValues):
+        print("TF-idf Daten Reviews")
+        print(" ")
+        print(data2)
+        print(" ")
+        result = data2.max()
+        sorted_result = result.sort_values(ascending=False)
+        print("Höchstes relatives Wortvorkommen: ")
+        print(sorted_result)
+        print(" ")
     return model
     
-model = calculateTfidf()
+model = calculateTfidf(True)
 
 
-# In[23]:
+# In[41]:
 
 
-def calculateCoherenceScore(model):
-    '''Implementierung des Coherence Score für die Ermittlung der optimalen Anzahl an Topics'''
-    '''Tests jeweils mit 2 bis 8 Topics'''
-    for x in range(2,8):
-        model = LdaModel(common_corpus, num_topics=x) # wrong model only for texting
-        c_model=CoherenceModel(model=model, corpus=common_corpus, dictionary=common_dictionary, coherence='u_mass')
-        coherence = c_model.get_coherence()
-        print("Coherence topic_number=",x," result ",coherence)
-
-def calculateLSA(model):
+def calculateLSA(model, topicNumber):
     '''Implementierung der LSA-Technik der semantischen Analyse'''
-    '''Tests jeweils mit 2 bis 8 Topics'''
-    for x in range(2,8):
-        lsa_model = TruncatedSVD(n_components=x,algorithm='randomized',n_iter=10)
-        lsa = lsa_model.fit_transform(model)
-        l=lsa[0]
-        '''Zwischenausgabe der LSA Daten'''
-        print("Latente semantische Analyse LSA mit Themenanzahl ",x)
-        print(" ")
-        print("Reviews:")
-        for i,topic in enumerate(l):
-            print("Topic ",i," : ", topic)
-        print(" ")
+    lsa_model = TruncatedSVD(n_components=topicNumber,algorithm='randomized',n_iter=10)
+    lsa = lsa_model.fit_transform(model)
+    lsa_first=lsa[0]
+    '''Zwischenausgabe der LSA Daten'''
+    print("Latente semantische Analyse LSA mit Themenanzahl ",topicNumber)
+    print(" ")
+    print("Reviews:")
+    for i,topic in enumerate(lsa_first):
+        print("Topic ",i," value : ", topic)
+    print(" ")
+    
+calculateLSA(model, chosenNumberTopics)
 
-def calculateLDA(model):
+
+# In[42]:
+
+
+def calculateCoherenceScore(model, df_column):
+    topics = model.components_
+    n_best_words = 20
+    texts = [[word for word in doc.split()] for doc in df_column]
+    dictionary = corpora.Dictionary(texts)
+    corpus = [dictionary.doc2bow(text) for text in texts]
+
+    feature_names = [dictionary[i] for i in range(len(dictionary))]
+
+    top_words = []
+    for topic in topics:
+        top_words.append([feature_names[i] for i in topic.argsort()[:-n_best_words - 1:-1]])
+
+    coherence_model = CoherenceModel(topics=top_words, texts=texts, dictionary=dictionary, coherence='c_v')
+    coherence_score = coherence_model.get_coherence()
+    return coherence_score
+        
+def printBestWordsInTopic(model, feature_names, n_best_words):
+    for topic_idx, topic in enumerate(model.components_):
+        print("Topic #%d:" % topic_idx)
+        print(" ".join([feature_names[i]
+            for i in topic.argsort()[:-n_best_words - 1:-1]])) 
+
+
+def calculateLDA(model, tfvectorizer, topicNumber, showValues):
     '''Implementierung der LDA-Technik der semantischen Analyse'''
-    '''Tests jeweils mit 2 bis 8 Topics'''
-    lda_model=LatentDirichletAllocation(n_components=2,learning_method='online',random_state=42,max_iter=1)
-    for x in range(2,8):
-        lda_model=LatentDirichletAllocation(n_components=x,learning_method='online',random_state=42,max_iter=1)
-        lda_top=lda_model.fit_transform(model)
-        '''Zwischenausgabe der LDA Daten'''
-        print("Latente Dirichlet Allocation LDA mit Themenanzahl ",x)
+    lda_model=LatentDirichletAllocation(n_components=topicNumber,learning_method='online',random_state=42,max_iter=1)
+    lda_top=lda_model.fit_transform(model)
+    '''Zwischenausgabe der LDA Daten'''
+    if (showValues):
+        print("Latente Dirichlet Allocation LDA mit Themenanzahl ",topicNumber)
         print(" ")
         print("Reviews: ")
         for i,topic in enumerate(lda_top[0]):
-            print("Topic ",i," ID "," : ",topic)
+            print("Topic ",i," value "," : ",topic)
         print(" ")
         print(" ")
         print("Documents by topic matrix: ",lda_top.shape)
@@ -229,16 +256,53 @@ def calculateLDA(model):
         print(" ")
     return lda_model
 
-def printNLPdata():
-    print("Method Test")
+    
+
+model = calculateLDA(model, tfvectorizer, chosenNumberTopics, True)
+print("Coherence Score: ",calculateCoherenceScore(model,preprocessed_data)," number of topics: ",chosenNumberTopics)
+
+
+# In[44]:
+
+
+def choseNumberTopicsByCoherenceScore(previousCoherenceScore):
+    previousCoherenceScore = [0]
+    for i in range(2,10):
+        model = calculateTfidf(False)
+        model = calculateLDA(model, tfvectorizer, i, False)
+        actualCoherence = calculateCoherenceScore(model,preprocessed_data)
+        print("Actual coherence score: ",actualCoherence,", number of topics: ",i)
+        previousCoherenceScore.sort(reverse=True)
+        print("Highest previous coherence score: ",previousCoherenceScore[0])
+        
+        if (actualCoherence > previousCoherenceScore[0]):
+            chosenNumberTopics = i
+            print("Information: Number of chosen topics was changed to ",i, " with better coherence score.")
+            print(" ")
+            
+        previousCoherenceScore.append(actualCoherence)
+    return chosenNumberTopics
+        
+chosenNumberTopics = choseNumberTopicsByCoherenceScore(0)
+
+
+# In[45]:
+
+
+def printNLPdata(ldamodel, vect):
+    n_top_words = 30
+    print(" ")
+    print("Best words in topic for LDA model:")
+    vect.fit_transform(preprocessed_data)
+    tf_feature_names = vect.get_feature_names()
+    printBestWordsInTopic(ldamodel, tf_feature_names, n_top_words)
 
 
 def plotNLPdata():
     print("Method Test")
     
-calculateLSA(model)
-model = calculateLDA(model)
-calculateCoherenceScore(model)
+vect = CountVectorizer(stop_words=stop_words_english)
+printNLPdata(model, vect)
 
 
 # In[ ]:
