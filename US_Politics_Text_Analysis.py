@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# In[10]:
+# In[45]:
 
 
 '''import the needed libraries'''
@@ -23,11 +23,11 @@ from gensim.models.coherencemodel import CoherenceModel
 from gensim.test.utils import common_corpus, common_dictionary
 import gensim.corpora as corpora
 from gensim.models.ldamodel import LdaModel
-# For tokenization - ToDo maybe not necessary
+# For tokenization
 from nltk.tokenize import word_tokenize
 nltk.download("punkt")
 nltk.download('wordnet')
-# For lemmatization - ToDo maybe not necessary
+# For lemmatization
 from nltk.stem import WordNetLemmatizer
 from nltk.corpus import wordnet
 from nltk.stem import PorterStemmer
@@ -38,9 +38,11 @@ from nltk.corpus import stopwords
 # For transforming SKLearn Coherence in Gensim Coherence
 import tmtoolkit
 from tmtoolkit.topicmod.evaluate import metric_coherence_gensim
+#Spellchecking
+from spellchecker import SpellChecker
 
 
-# In[12]:
+# In[46]:
 
 
 '''Method for reading data from csv and save as type DataFrame (Pandas)'''
@@ -70,8 +72,29 @@ print(" ")
 print("Number of rows in DataFrame: ", len(data))
 
 
-# In[13]:
+# In[48]:
 
+
+def preprocess_text(text):
+    # Convert to lowercase
+    text = text.lower()
+    
+    # Remove URLs
+    text = re.sub(r'https?://\S+|www\.\S+', '', text) 
+    
+    # Remove special characters, keeping only words and basic charakters
+    # special for this data set: numbers are not interesting (only political buzzwords and temper)
+    # EXPERIMENTAL: Problems, if used with tokenization/stemming
+    #text = re.sub(r'[^a-zA-Z0-9\s,.?!]', '', text)  
+    text = re.sub(r'[^a-zA-Z\s,.?!]', '', text)  
+    
+    # Reduce massive character repetition to a maximum of two charakters
+    text = re.sub(r'(.)\1{2,}', r'\1\1', text)   
+    return text
+
+def appendIndividualStopwords(list):
+    for i in range(len(list)):
+        stopwords.append(list[i])
 
 '''Cleaning data'''
 # delete duplicate reviews - column body
@@ -96,50 +119,61 @@ print(type(reviews))
 print(" ")
 
 '''Text Preprocessing'''
-'''I Tokenization - ToDo check later for optimization '''
 
-'''II Download and definition of stopwords with NLTK - ToDo append new stopwords'''
+'''I Download and definition of stopwords with NLTK'''
 nltk.download("stopwords")
-stop_words_english = set(stopwords.words('english'))
-'''III Stemming / Lemmatization - ToDo check later for optimization'''
+stopwords = nltk.corpus.stopwords.words('english')
+'''Define individual stopwords for data set'''
+list_indiv_stopwords = ['much', 'could', 'get', 'going', 'anything', 'something', 'someone', 'yes',
+                        'wasnt', 'since', 'still', 'means', 'hey', 'ah', 'thats', 'happen', 'no',
+                        'probably', 'ok', 'either', 'yo', 'basically', 'half', 'saw', 'also', 'aah',  
+                        'al', 'havent', 'didnt', 'there', 'maybe', 'im', 'nobody', 'st', 'wa', 
+                        'nah', 'dont', 'youre', 'got', 'th', 'arent', 'would', 'ive', 'though', 
+                        'isnt', 'ha', 'yep', 'shes', 'definitely', 'yeah', 'oh', 'hes', 'lot', 'id', 'else',
+                       'hi', 'wo', 'ye', 'ca', 'tha', 'thi', 'yup', 'nni', 'nn', 'su', 'hasnt', 'sh', 'ge', 'bc', 
+                        'sur', 'theyre', 'gop', 'em', 'nnit', 'wi', 'theyll', 'whether', 'youve']
+#print(list_indiv_stopwords)
+appendIndividualStopwords(list_indiv_stopwords)
+#print(stopwords)
+#stop_words_english = set(stopwords.words('english'))
 
-def preprocess_text(text):
-    # Convert to lowercase
-    text = text.lower()
-    # Remove URLs
-    text = re.sub(r'https?://\S+|www\.\S+', '', text)  
-    # Remove special characters, keeping only words and basic charakters
-    #text = re.sub(r'[^a-zA-Z0-9\s,.?!]', '', text)  
-    text = re.sub(r'[^a-zA-Z\s,.?!]', '', text)  
-    # Reduce massive character repetition to a maximum of two charakters
-    text = re.sub(r'(.)\1{2,}', r'\1\1', text)   
-    return text
-
-'''Execution of text preprocessing'''
+'''I. Execution of text preprocessing'''
 changed_data = preprocess_text(reviews_string)
 
-'''Convert string into a list. Split by lines.'''
-list_changed_data = changed_data.splitlines()
-
+'''II. Tokenization'''
 # Use the spaCy model
-#nlp = spacy.load("en_core_web_sm")
+nlp = spacy.load("en_core_web_sm")
 # Tokenize the text
-#doc = nlp(list_changed_data)
+doc = nlp(changed_data)
 # Extract tokens
-#tokens = [token.text for token in doc]
+tokens = [token.text for token in doc]
 #print("DataType tokens: ",type(tokens))
 #print(tokens)
 #print(" ")
 
+# Using a spell checker to correct mistakes in the text
+# WARNING: Very long code execution times
+# NOT RECOMMENDED for this data set
+#spell = SpellChecker()
+#corrected_tokens = [spell.correction(token) if re.search(r'(.)\1', token) else token for token in tokens]
+#print(corrected_tokens)
+
+'''III. Stemming / Lemmatization'''
+
 # For Stemming
 # Initialize the stemmer
-#stemmer = PorterStemmer()
+stemmer = PorterStemmer()
 # Stemming each token
-#stemmed_tokens = [stemmer.stem(token) for token in tokens]
+stemmed_tokens = [stemmer.stem(token) for token in tokens]
 #print("Sentences after Stemming:")
 #print(stemmed_tokens)
 #print(type(stemmed_tokens))
 #print(" ")
+
+
+'''Convert string into a list. Split by lines.'''
+list_changed_data = changed_data.splitlines()   # important: data with good results
+#list_changed_data = stemmed_tokens # experimental: data after tokenization/stemming
 
 # converting list into series datatype
 preprocessed_data = pd.Series(list_changed_data)
@@ -147,12 +181,12 @@ print("Text after text preprocessing:")
 print(preprocessed_data)
 
 
-# In[14]:
+# In[49]:
 
 
 '''Implementation Bag-of-words'''
 def calculateBoW(showValues):
-    vect = CountVectorizer(stop_words=stop_words_english)
+    vect = CountVectorizer(stop_words=stopwords)
     bow_data = vect.fit_transform(preprocessed_data)
     bow_data = pd.DataFrame(bow_data.toarray(),columns=vect.get_feature_names())
     '''Zwischenausgabe der Bow-Modell Daten'''
@@ -171,14 +205,13 @@ def calculateBoW(showValues):
 calculateBoW(True)
 
 
-# In[15]:
+# In[50]:
 
 
 '''Implementation Tf-idf'''
-'''ToDo wrong data - the data from text preprocessing not used'''
 def calculateTfidf(showValues):
     vectorizer = TfidfVectorizer(use_idf=True,
-    smooth_idf=True, stop_words=stop_words_english)
+    smooth_idf=True, stop_words=stopwords)
     tfvectorizer = vectorizer
     model = vectorizer.fit_transform(preprocessed_data)
     data2=pd.DataFrame(model.toarray(),columns=vectorizer.get_feature_names())
@@ -198,7 +231,7 @@ def calculateTfidf(showValues):
 tfvectorizer = calculateTfidf(True)
 
 
-# In[16]:
+# In[51]:
 
 
 def calculateLSA(model, topicNumber, showValues):
@@ -216,7 +249,7 @@ def calculateLSA(model, topicNumber, showValues):
         print(" ")
 
 
-# In[17]:
+# In[52]:
 
 
 def calculateCoherenceScore(model, df_column):
@@ -236,13 +269,6 @@ def calculateCoherenceScore(model, df_column):
     coherence_score = coherence_model.get_coherence()
     return coherence_score
         
-def printBestWordsInTopic(model, feature_names, n_best_words):
-    for topic_idx, topic in enumerate(model.components_):
-        print("Topic #%d:" % topic_idx)
-        print(" ".join([feature_names[i]
-            for i in topic.argsort()[:-n_best_words - 1:-1]])) 
-
-
 def calculateLDA(model, tfvectorizer, topicNumber, showValues):
     '''Implementierung der LDA-Technik der semantischen Analyse'''
     lda_model=LatentDirichletAllocation(n_components=topicNumber,learning_method='online',random_state=42,max_iter=1)
@@ -262,10 +288,10 @@ def calculateLDA(model, tfvectorizer, topicNumber, showValues):
     return lda_model
 
 
-# In[27]:
+# In[53]:
 
 
-def choseNumberTopicsByCoherenceScore(previousCoherenceScore):
+def choseNumberTopicsByCoherenceScore():
     previousCoherenceScore = [0]
     for i in range(2,11):
         model = calculateTfidf(False)
@@ -283,10 +309,10 @@ def choseNumberTopicsByCoherenceScore(previousCoherenceScore):
         previousCoherenceScore.append(actualCoherence)
     return chosenNumberTopics
         
-chosenNumberTopics = choseNumberTopicsByCoherenceScore(0)
+chosenNumberTopics = choseNumberTopicsByCoherenceScore()
 
 
-# In[28]:
+# In[54]:
 
 
 def calculateTextAnalysis(model, chosenNumberTopics):
@@ -297,11 +323,17 @@ def calculateTextAnalysis(model, chosenNumberTopics):
 ldamodel = calculateTextAnalysis(tfvectorizer, chosenNumberTopics)
 
 
-# In[29]:
+# In[56]:
 
+
+def printBestWordsInTopic(model, feature_names, n_best_words):
+    for topic_idx, topic in enumerate(model.components_):
+        print("Topic #%d:" % topic_idx)
+        print(" ".join([feature_names[i]
+            for i in topic.argsort()[:-n_best_words - 1:-1]])) 
 
 def printNLPdata(ldamodel, vect):
-    n_top_words = 30
+    n_top_words = 60
 
     vect.fit_transform(preprocessed_data)
     tf_feature_names = vect.get_feature_names()
@@ -311,9 +343,9 @@ def printNLPdata(ldamodel, vect):
 
 
 def plotNLPdata():
-    print("Method Test")
+    print("For future implementation")
     
-vect = CountVectorizer(stop_words=stop_words_english)
+vect = CountVectorizer(stop_words=stopwords)
 printNLPdata(ldamodel, vect)
 
 
