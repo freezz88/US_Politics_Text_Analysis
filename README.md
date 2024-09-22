@@ -7,3 +7,4 @@ The .py file is a classical programming representation and is useful for a fast 
 The third file is the .csv data, that will be used automatically by executing the code. For a manually analysis and for evaluating the NLP results, you can open and read it. You should filter the first column for "comments", if you want to see the interesting data for analysis.
 
 Important notice for usage: Please execute the code segments in the specific order. NLP has different phases and the order is very important for good results.
+Notice for execution times: Text Preprocessing and calculation coherence scores takes a lot of time. This isn't an error.
