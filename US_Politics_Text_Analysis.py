@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# In[36]:
+# In[10]:
 
 
 '''import the needed libraries'''
@@ -40,7 +40,7 @@ import tmtoolkit
 from tmtoolkit.topicmod.evaluate import metric_coherence_gensim
 
 
-# In[37]:
+# In[12]:
 
 
 '''Method for reading data from csv and save as type DataFrame (Pandas)'''
@@ -51,22 +51,26 @@ def inputData(url):
     
 '''Declaration of variables'''
 '''Data Input as .csv from github'''
-'''@model: placeholder for lsa/lda, that will be overwritten'''
 '''@tfvectorizer: placeholder for Tfidf, that will be overwritten'''
+'''@lsamodel: placeholder for LSA, that will be overwritten'''
+'''@ldamodel: placeholder for lDA, that will be overwritten'''
 '''@chosenNumberTopics: number of topics used for the specific data set'''
+'''@data_url: URL for the input data from Githup Repository'''
 '''@param: ?raw=true in url important for using clean original data'''
 bow_vect = CountVectorizer()
 tfvectorizer = TfidfVectorizer(use_idf=True, smooth_idf=True)
-model = TruncatedSVD(n_components=10,algorithm='randomized',n_iter=10)
+lsamodel = TruncatedSVD(n_components=10,algorithm='randomized',n_iter=10)
+ldamodel = LatentDirichletAllocation(n_components=10,learning_method='online',random_state=42,max_iter=1)
 chosenNumberTopics = 2
 data_url = 'https://github.com/freezz88/US_Politics_Text_Analysis/blob/main/reddit_politics.csv?raw=true'
 data = inputData(data_url)
 print(data.head(10))
 print(type(data))
+print(" ")
 print("Number of rows in DataFrame: ", len(data))
 
 
-# In[38]:
+# In[13]:
 
 
 '''Cleaning data'''
@@ -77,6 +81,7 @@ data.dropna(subset=['body'], inplace=True)
 # Reset the index after the deletion of rows
 data.reset_index(drop=True, inplace=True)
 print("Number of rows in DataFrame after Cleaning: ",len(data))
+print(" ")
 
 '''Filter text for the category comments'''
 '''Only show the column body, the others doesnt matter'''
@@ -142,30 +147,31 @@ print("Text after text preprocessing:")
 print(preprocessed_data)
 
 
-# In[39]:
+# In[14]:
 
 
 '''Implementation Bag-of-words'''
-def calculateBoW():
+def calculateBoW(showValues):
     vect = CountVectorizer(stop_words=stop_words_english)
     bow_data = vect.fit_transform(preprocessed_data)
     bow_data = pd.DataFrame(bow_data.toarray(),columns=vect.get_feature_names())
     '''Zwischenausgabe der Bow-Modell Daten'''
-    print("BoW-Modell Daten")
-    print(" ")
-    print(bow_data)
-    print(" ")
-    result = bow_data.max()
-    sorted_result = result.sort_values(ascending=False)
-    print("Höchste Wortvorkommen: ")
-    print(sorted_result)
-    print(" ")
+    if (showValues):
+        print("BoW-Modell Daten")
+        print(" ")
+        print(bow_data)
+        print(" ")
+        result = bow_data.max()
+        sorted_result = result.sort_values(ascending=False)
+        print("Höchste Wortvorkommen: ")
+        print(sorted_result)
+        print(" ")
     
     
-calculateBoW()
+calculateBoW(True)
 
 
-# In[40]:
+# In[15]:
 
 
 '''Implementation Tf-idf'''
@@ -189,29 +195,28 @@ def calculateTfidf(showValues):
         print(" ")
     return model
     
-model = calculateTfidf(True)
+tfvectorizer = calculateTfidf(True)
 
 
-# In[41]:
+# In[16]:
 
 
-def calculateLSA(model, topicNumber):
+def calculateLSA(model, topicNumber, showValues):
     '''Implementierung der LSA-Technik der semantischen Analyse'''
     lsa_model = TruncatedSVD(n_components=topicNumber,algorithm='randomized',n_iter=10)
     lsa = lsa_model.fit_transform(model)
     lsa_first=lsa[0]
     '''Zwischenausgabe der LSA Daten'''
-    print("Latente semantische Analyse LSA mit Themenanzahl ",topicNumber)
-    print(" ")
-    print("Reviews:")
-    for i,topic in enumerate(lsa_first):
-        print("Topic ",i," value : ", topic)
-    print(" ")
-    
-calculateLSA(model, chosenNumberTopics)
+    if (showValues):
+        print("Latente semantische Analyse LSA mit Themenanzahl ",topicNumber)
+        print(" ")
+        print("Reviews:")
+        for i,topic in enumerate(lsa_first):
+            print("Topic ",i," value : ", topic)
+        print(" ")
 
 
-# In[42]:
+# In[17]:
 
 
 def calculateCoherenceScore(model, df_column):
@@ -256,18 +261,13 @@ def calculateLDA(model, tfvectorizer, topicNumber, showValues):
         print(" ")
     return lda_model
 
-    
 
-model = calculateLDA(model, tfvectorizer, chosenNumberTopics, True)
-print("Coherence Score: ",calculateCoherenceScore(model,preprocessed_data)," number of topics: ",chosenNumberTopics)
-
-
-# In[44]:
+# In[27]:
 
 
 def choseNumberTopicsByCoherenceScore(previousCoherenceScore):
     previousCoherenceScore = [0]
-    for i in range(2,10):
+    for i in range(2,11):
         model = calculateTfidf(False)
         model = calculateLDA(model, tfvectorizer, i, False)
         actualCoherence = calculateCoherenceScore(model,preprocessed_data)
@@ -286,15 +286,27 @@ def choseNumberTopicsByCoherenceScore(previousCoherenceScore):
 chosenNumberTopics = choseNumberTopicsByCoherenceScore(0)
 
 
-# In[45]:
+# In[28]:
+
+
+def calculateTextAnalysis(model, chosenNumberTopics):
+    #calculateLSA(model, chosenNumberTopics, True) # chosenNumberTopics for LSA had to be calculated seperated by coherence
+    model = calculateLDA(model, tfvectorizer, chosenNumberTopics, True)
+    return model
+    
+ldamodel = calculateTextAnalysis(tfvectorizer, chosenNumberTopics)
+
+
+# In[29]:
 
 
 def printNLPdata(ldamodel, vect):
     n_top_words = 30
-    print(" ")
-    print("Best words in topic for LDA model:")
+
     vect.fit_transform(preprocessed_data)
     tf_feature_names = vect.get_feature_names()
+    print(" ")
+    print("Best words in topic for LDA model:")
     printBestWordsInTopic(ldamodel, tf_feature_names, n_top_words)
 
 
@@ -302,7 +314,7 @@ def plotNLPdata():
     print("Method Test")
     
 vect = CountVectorizer(stop_words=stop_words_english)
-printNLPdata(model, vect)
+printNLPdata(ldamodel, vect)
 
 
 # In[ ]:
