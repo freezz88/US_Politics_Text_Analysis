@@ -10,12 +10,21 @@ Important notice for usage: Please execute the code segments in the specific ord
 Notice for execution times: Text Preprocessing and the calculation of coherence scores takes a lot of time. This isn't an error. Please be patient.
 
 Following versions of the packages were used (during code creation date):
+
 Gensim  4.3.3
+
 NLTK 3.9.1
+
 Numpy 1.26.4
+
 Pandas 2.2.3
+
 SKLearn 0.0 (no pip information)
+
 Spacy 3.7.6
+
 Spellchecker 0.4
+
 Tmtoolkit 0.12.0
-Notice: These are requirements and had to be installed with "pip install <<package>>" before executing the code.
+
+Notice: These are requirements and had to be installed with "pip install name" before executing the code.
